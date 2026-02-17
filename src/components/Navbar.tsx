@@ -1,17 +1,13 @@
+// src/components/Navbar.tsx
 import { signOut } from "firebase/auth"
 import { auth } from "../firebase"
 import { useNavigate } from "react-router-dom"
 
 export default function Navbar() {
   const navigate = useNavigate()
-
   const handleLogout = async () => {
-    try {
-      await signOut(auth)
-      navigate("/login") // redirect to login page
-    } catch (err: any) {
-      alert("Logout failed: " + err.message)
-    }
+    await signOut(auth)
+    navigate("/login")
   }
 
   return (
