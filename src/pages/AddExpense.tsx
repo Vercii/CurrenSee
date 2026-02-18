@@ -1,81 +1,116 @@
 // src/pages/AddExpense.tsx
+import Layout from "../components/Layout"
 import { useState } from "react"
 import { auth, db } from "../firebase"
-import { collection, addDoc, doc, updateDoc, getDoc, Timestamp } from "firebase/firestore"
-import Layout from "../components/Layout"
+import { collection, addDoc, doc, getDoc, updateDoc, query, where, getDocs } from "firebase/firestore"
 
-export default function AddExpense() {
+export default function AddExpensePage() {
   const [category, setCategory] = useState("")
   const [amount, setAmount] = useState<number | "">("")
-  const [loading, setLoading] = useState(false)
 
   const handleAddExpense = async () => {
     if (!auth.currentUser) return
     if (!category || !amount || amount <= 0) return
 
-    setLoading(true)
+    const uid = auth.currentUser.uid
+    const userDocRef = doc(db, "users", uid)
+
     try {
-      const userId = auth.currentUser.uid
-      const userDocRef = doc(db, "users", userId)
-
-      // Fetch current budget
-      const userDocSnap = await getDoc(userDocRef)
-      let currentBudget = 0
-      if (userDocSnap.exists()) {
-        currentBudget = userDocSnap.data().budget ?? 0
-      }
-
-      // Subtract expense from budget
-      const newBudget = currentBudget - amount
-      await updateDoc(userDocRef, { budget: newBudget })
-
-      // Add expense transaction with type "debit"
+      // 1️⃣ Add new expense document
       await addDoc(collection(db, "expenses"), {
-        userId,
+        userId: uid,
         category,
         amount,
         type: "debit",
-        date: Timestamp.now()
+        date: new Date()
       })
 
-      // Reset inputs
+      // 2️⃣ Recalculate totals for dashboard fields
+      const q = query(collection(db, "expenses"), where("userId", "==", uid))
+      const snapshot = await getDocs(q)
+
+      let totalExpenses = 0
+      const catMap: Record<string, number> = {}
+      let recentTransaction = ""
+
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data()
+        const amt = Number(data.amount ?? 0)
+        const typ = data.type ?? "debit"
+        const cat = data.category ?? "Uncategorized"
+
+        if (typ === "debit") {
+          totalExpenses += amt
+          catMap[cat] = (catMap[cat] || 0) + amt
+        }
+      })
+
+      // Most recent transaction
+      const sortedTx = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() } as { id: string; date?: any; category?: string; amount?: number }))
+        .sort((a, b) => (b.date?.toMillis?.() ?? 0) - (a.date?.toMillis?.() ?? 0))
+
+      if (sortedTx.length > 0) {
+        const last = sortedTx[0]
+        recentTransaction = `${last.category}: ₱${last.amount}`
+      }
+
+      // Top category
+      const topCategory =
+        Object.entries(catMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "N/A"
+
+      // 3️⃣ Update user document with totals
+      const userDocSnap = await getDoc(userDocRef)
+      let currentBudget = 50000
+      if (userDocSnap.exists()) {
+        currentBudget = userDocSnap.data().budget ?? 50000
+      }
+
+      await updateDoc(userDocRef, {
+        totalExpenses,
+        recentTransaction,
+        topCategory,
+        budget: currentBudget - amount // subtract expense
+      })
+
+      // Reset form fields
       setCategory("")
       setAmount("")
-    } catch (err: any) {
-      console.error("Failed to add expense:", err.message)
-    } finally {
-      setLoading(false)
+    } catch (err) {
+      console.error("Failed to add expense:", err)
+      alert("Error adding expense: " + err)
     }
   }
 
   return (
     <Layout>
-      <div className="mt-6 p-6 bg-black/20 backdrop-blur-md rounded-xl border border-white/10 w-full">
-        <h2 className="text-2xl font-bold text-white mb-6">Add Expense</h2>
+      <div className="p-6">
+        <h1 className="text-3xl font-bold mb-6">Add Expense</h1>
 
-        <div className="flex flex-col gap-4 w-full">
+        <div className="max-w-md mx-auto">
+          <label className="block text-white/80 mb-2">Category</label>
           <input
             type="text"
             placeholder="Category"
-            className="w-full p-3 rounded-md bg-white/5 text-white placeholder-gray-400"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
+            className="w-full mb-4 p-2 rounded border border-white/20 bg-black/20 text-white"
           />
 
+          <label className="block text-white/80 mb-2">Amount</label>
           <input
             type="number"
             placeholder="Amount"
-            className="w-full p-3 rounded-md bg-white/5 text-white placeholder-gray-400"
             value={amount}
             onChange={(e) => setAmount(Number(e.target.value))}
+            className="w-full mb-4 p-2 rounded border border-white/20 bg-black/20 text-white"
           />
 
           <button
             onClick={handleAddExpense}
-            disabled={loading}
-            className="w-full p-3 rounded-lg bg-purple-400/30 hover:bg-purple-400/50 transition"
+            className="w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded transition"
           >
-            {loading ? "Adding..." : "Add Expense"}
+            Add Expense
           </button>
         </div>
       </div>

@@ -5,15 +5,15 @@ import { useEffect, useState } from "react"
 import { auth, db } from "../firebase"
 import {
   collection,
-  query,
-  where,
-  onSnapshot,
   doc,
   getDoc,
   updateDoc,
   addDoc,
+  Timestamp,
+  query,
+  where,
   orderBy,
-  Timestamp
+  onSnapshot
 } from "firebase/firestore"
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth"
 
@@ -26,11 +26,13 @@ interface Expense {
 }
 
 export default function Dashboard() {
-  const [topCategory, setTopCategory] = useState("N/A")
-  const [recentTransaction, setRecentTransaction] = useState<string>("—")
   const [userName, setUserName] = useState("")
   const [loadingUser, setLoadingUser] = useState(true)
   const [budget, setBudget] = useState(0)
+  const [budgetLeft, setBudgetLeft] = useState(0)
+  const [total, setTotal] = useState(0)
+  const [topCategory, setTopCategory] = useState("N/A")
+  const [recentTransaction, setRecentTransaction] = useState("—")
   const [transactions, setTransactions] = useState<Expense[]>([])
 
   useEffect(() => {
@@ -40,61 +42,59 @@ export default function Dashboard() {
       if (!user) {
         setUserName("")
         setBudget(0)
+        setBudgetLeft(0)
+        setTotal(0)
+        setTopCategory("N/A")
+        setRecentTransaction("—")
         setLoadingUser(false)
         return
       }
 
       try {
-        // ✅ Fetch user document
         const userDocRef = doc(db, "users", user.uid)
         const userDoc = await getDoc(userDocRef)
 
+        // Fetch precomputed values
         let userBudget = 50000
+        let userTotal = 0
+        let userTopCat = "N/A"
+        let userRecent = "—"
+
         if (userDoc.exists()) {
           const data = userDoc.data()
           setUserName(data.name ?? user.displayName ?? "User")
           userBudget = data.budget ?? 50000
-          setBudget(userBudget)
+          userTotal = data.totalExpenses ?? 0
+          userTopCat = data.topCategory ?? "N/A"
+          userRecent = data.recentTransaction ?? "—"
         } else {
           setUserName(user.displayName ?? "User")
-          setBudget(userBudget)
         }
 
-        // ✅ Real-time expenses listener
-        const q = query(
+        setBudget(userBudget)
+        setTotal(userTotal)
+        setTopCategory(userTopCat)
+        setRecentTransaction(userRecent)
+        setBudgetLeft(userBudget)
+
+        // Listen to all transactions for history (optional: we can skip recalculating totals here)
+        const txQuery = query(
           collection(db, "expenses"),
           where("userId", "==", user.uid),
           orderBy("date", "desc")
         )
-
-        expenseUnsub = onSnapshot(q, (snapshot) => {
-          const txs: Expense[] = []
-          const catMap: Record<string, number> = {}
-
-          snapshot.docs.forEach((doc) => {
+        expenseUnsub = onSnapshot(txQuery, (snapshot) => {
+          const txs: Expense[] = snapshot.docs.map((doc) => {
             const data = doc.data()
-            const amount = Number(data.amount ?? 0)
-            const type = data.type ?? "debit"
-            const category = data.category ?? "N/A"
-
-            // Track category totals for Top Category
-            if (type === "debit") catMap[category] = (catMap[category] || 0) + amount
-
-            txs.push({
+            return {
               id: doc.id,
-              category,
-              amount,
-              date: data.date?.toDate?.() ?? new Date(),
-              type
-            })
+              category: data.category ?? "Uncategorized",
+              amount: Number(data.amount ?? 0),
+              type: data.type ?? "debit",
+              date: data.date?.toDate?.() ?? new Date()
+            }
           })
-
           setTransactions(txs)
-          setTopCategory(Object.entries(catMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "N/A")
-
-          // ✅ Most recent transaction
-          if (txs.length > 0) setRecentTransaction(`${txs[0].category}: ${txs[0].type === "credit" ? '+' : '₱'}${txs[0].amount}`)
-          else setRecentTransaction("—")
         })
 
       } catch (err) {
@@ -110,9 +110,9 @@ export default function Dashboard() {
     }
   }, [])
 
-  // -------------------
-  // Add budget
-  // -------------------
+  // ---------------------------
+  // Add Budget
+  // ---------------------------
   const handleAddBudget = async () => {
     const addAmountStr = prompt("Enter amount to add to your budget:")
     const addAmount = Number(addAmountStr)
@@ -122,12 +122,12 @@ export default function Dashboard() {
     try {
       const userDocRef = doc(db, "users", auth.currentUser.uid)
 
-      // ✅ Update Firestore budget
+      // Update budget in Firestore
       const newBudget = budget + addAmount
+      const newTotal = total // totalExpenses doesn't change
       await updateDoc(userDocRef, { budget: newBudget })
-      setBudget(newBudget)
 
-      // ✅ Log as CREDIT transaction
+      // Log CREDIT transaction
       await addDoc(collection(db, "expenses"), {
         userId: auth.currentUser.uid,
         amount: addAmount,
@@ -135,25 +135,48 @@ export default function Dashboard() {
         type: "credit",
         date: Timestamp.now()
       })
+
+      // Update user doc summary fields
+      const recentTxStr = `Budget Added: +₱${addAmount}`
+      await updateDoc(userDocRef, { recentTransaction: recentTxStr })
+
+      setBudget(newBudget)
+      setBudgetLeft(newBudget - newTotal)
+      setRecentTransaction(recentTxStr)
     } catch (err) {
       alert("Failed to update budget: " + err)
     }
   }
 
-  // -------------------
-  // Add expense (debit)
-  // -------------------
+  // ---------------------------
+  // Add Expense (debit)
+  // ---------------------------
   const handleAddExpense = async (category: string, amount: number) => {
     if (!auth.currentUser) return
     try {
       const userDocRef = doc(db, "users", auth.currentUser.uid)
 
-      // ✅ Subtract from Firestore budget directly
-      const newBudget = budget - amount
-      await updateDoc(userDocRef, { budget: newBudget })
-      setBudget(newBudget)
+      const newTotal = total + amount
+      const newBudgetLeft = budget - newTotal
 
-      // ✅ Add expense transaction
+      // Update totalExpenses and recentTransaction directly in user doc
+      const recentTxStr = `${category}: ₱${amount}`
+      await updateDoc(userDocRef, {
+        budget: budget,
+        totalExpenses: newTotal,
+        recentTransaction: recentTxStr,
+      })
+
+      // Update Top Category
+      const catTotals = {} as Record<string, number>
+      transactions.forEach((t) => {
+        if (t.type === "debit") catTotals[t.category] = (catTotals[t.category] || 0) + t.amount
+      })
+      catTotals[category] = (catTotals[category] || 0) + amount
+      const newTopCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "N/A"
+      await updateDoc(userDocRef, { topCategory: newTopCat })
+
+      // Add debit transaction
       await addDoc(collection(db, "expenses"), {
         userId: auth.currentUser.uid,
         amount,
@@ -161,6 +184,12 @@ export default function Dashboard() {
         type: "debit",
         date: Timestamp.now()
       })
+
+      // Update local state
+      setTotal(newTotal)
+      setBudgetLeft(newBudgetLeft)
+      setTopCategory(newTopCat)
+      setRecentTransaction(recentTxStr)
     } catch (err) {
       alert("Failed to add expense: " + err)
     }
@@ -174,15 +203,30 @@ export default function Dashboard() {
 
       {/* 2x2 Grid */}
       <div className="grid grid-cols-2 grid-rows-2 gap-6 mb-6">
-        <GlassCard title="Total Expenses" value={`₱${transactions.filter(t => t.type === 'debit').reduce((acc, t) => acc + t.amount, 0)}`} />
-        <GlassCard title="Top Category" value={topCategory} />
-        <GlassCard title="Recent Transaction" value={recentTransaction} />
-        <div onClick={handleAddBudget} className="cursor-pointer">
-          <GlassCard
-            title="Budget Left"
-            value={`₱${budget}`}
-          />
-        </div>
+        <GlassCard
+          title="Total Expenses"
+          value={`₱${total}`}
+          hoverColor="hover:bg-[#a85432]/20 hover:border-[#a85432]/40"
+        />
+
+        <GlassCard
+          title="Top Category"
+          value={topCategory}
+          hoverColor="hover:bg-[#aeb327]/20 hover:border-[#aeb327]/40"
+        />
+
+        <GlassCard
+          title="Recent Transaction"
+          value={recentTransaction}
+          hoverColor="hover:bg-[#2778b3]/20 hover:border-[#2778b3]/40"
+        />
+
+        <GlassCard
+          title="Budget Left"
+          value={`₱${budgetLeft}`}
+          onClick={handleAddBudget}
+          textColor={budgetLeft >= 15 ? "text-lime-400" : "text-red-500"}
+        />
       </div>
 
       {/* Transaction History */}
@@ -206,8 +250,12 @@ export default function Dashboard() {
               }`}
             >
               <span>{t.category}</span>
-              <span>{t.type === "credit" ? `+₱${t.amount}` : `₱${t.amount}`}</span>
-              <span>{new Date(t.date).toLocaleDateString()}</span>
+              <span>
+                {t.type === "credit" ? `+₱${t.amount}` : `₱${t.amount}`}
+              </span>
+              <span>
+                {new Date(t.date).toLocaleDateString()}
+              </span>
             </div>
           ))}
         </div>
