@@ -168,19 +168,33 @@ export default function Dashboard() {
 
       {/* 2x2 Grid */}
       <div className="grid grid-cols-2 grid-rows-2 gap-6 mb-6">
-        <GlassCard title="Total Expenses" value={`₱${total}`} />
-        <GlassCard title="Top Category" value={topCategory} />
-        <GlassCard title="Recent Transaction" value={recentTransaction} />
+      <GlassCard
+        title="Total Expenses"
+        value={`₱${total}`}
+        hoverColor="hover:bg-[#a85432]/20 hover:border-[#a85432]/40"
+      />
 
-        <div onClick={handleAddBudget} className="cursor-pointer">
-          <div onClick={handleAddBudget} className="cursor-pointer">
-  <div style={{ color: budgetLeft >= 15 ? "limegreen" : "#ad2915" }}>
-    <GlassCard title="Budget Left" value={`₱${budgetLeft}`} />
-  </div>
-</div>
+      <GlassCard
+        title="Top Category"
+        value={topCategory}
+        hoverColor="hover:bg-[#aeb327]/20 hover:border-[#aeb327]/40"
+      />
 
-        </div>
-      </div>
+      <GlassCard
+        title="Recent Transaction"
+        value={recentTransaction}
+        hoverColor="hover:bg-[#2778b3]/20 hover:border-[#2778b3]/40"
+      />
+
+      <GlassCard
+        title="Budget Left"
+        value={`₱${budgetLeft}`}
+        onClick={handleAddBudget}
+        textColor={budgetLeft >= 15 ? "text-lime-400" : "text-red-500"}
+      />
+
+    </div>
+
 
       {/* Transaction History */}
       <div className="mt-6 p-4 bg-black/20 backdrop-blur-md rounded-xl border border-white/10">
