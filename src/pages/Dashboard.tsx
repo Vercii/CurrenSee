@@ -4,21 +4,17 @@ import ExpenseList from "../components/ExpenseCard"
 import GlassCard from "../components/GlassCard"
 import { useEffect, useState } from "react"
 import { auth, db } from "../firebase"
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  getDoc
-} from "firebase/firestore"
+import { collection, query, where, onSnapshot, doc, getDoc, orderBy, limit } from "firebase/firestore"
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth"
 
 export default function Dashboard() {
   const [total, setTotal] = useState(0)
   const [topCategory, setTopCategory] = useState("N/A")
+  const [recentTransaction, setRecentTransaction] = useState<string>("—")
   const [userName, setUserName] = useState("")
   const [loadingUser, setLoadingUser] = useState(true)
+  const [budget, setBudget] = useState(0)
+  const [budgetLeft, setBudgetLeft] = useState(0)
 
   useEffect(() => {
     let expenseUnsub: (() => void) | null = null
@@ -26,34 +22,34 @@ export default function Dashboard() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
       if (!user) {
         setUserName("")
+        setBudget(0)
         setLoadingUser(false)
         return
       }
 
-      // ----------------------------
-      // 1️⃣ Fetch user profile (UID doc)
-      // ----------------------------
       try {
+        // Fetch user document from Firestore
         const userDoc = await getDoc(doc(db, "users", user.uid))
-
         if (userDoc.exists()) {
-          setUserName(userDoc.data().name)
+          const data = userDoc.data()
+          setUserName(data.name ?? user.displayName ?? "User")
+          setBudget(data.budget ?? 50000) // fallback default budget
         } else {
-          // fallback to Firebase Auth display name
-          setUserName(user.displayName || "User")
+          setUserName(user.displayName ?? "User")
+          setBudget(50000)
         }
       } catch (err) {
         console.error("Failed to fetch user:", err)
+        setBudget(50000)
       } finally {
         setLoadingUser(false)
       }
 
-      // ----------------------------
-      // 2️⃣ Real-time expense stats
-      // ----------------------------
+      // Real-time expenses listener
       const q = query(
         collection(db, "expenses"),
-        where("userId", "==", user.uid)
+        where("userId", "==", user.uid),
+        orderBy("date", "desc") // sort newest first
       )
 
       expenseUnsub = onSnapshot(q, (snapshot) => {
@@ -62,24 +58,30 @@ export default function Dashboard() {
 
         snapshot.docs.forEach((doc) => {
           const data = doc.data()
-          sum += data.amount ?? 0
-          catMap[data.category] =
-            (catMap[data.category] || 0) + (data.amount ?? 0)
+          const amount = Number(data.amount ?? 0)
+          sum += amount
+          catMap[data.category] = (catMap[data.category] || 0) + amount
         })
 
         setTotal(sum)
+        setTopCategory(Object.entries(catMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "N/A")
+        setBudgetLeft(budget - sum)
 
-        const top = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0]
-        setTopCategory(top ? top[0] : "N/A")
+        // Most recent transaction
+        if (snapshot.docs.length > 0) {
+          const recent = snapshot.docs[0].data()
+          setRecentTransaction(`${recent.category}: ₱${recent.amount}`)
+        } else {
+          setRecentTransaction("—")
+        }
       })
     })
 
-    // Cleanup everything
     return () => {
       unsubscribeAuth()
       if (expenseUnsub) expenseUnsub()
     }
-  }, [])
+  }, [budget])
 
   return (
     <Layout>
@@ -92,12 +94,10 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <GlassCard title="Total Expenses" value={`₱${total}`} />
         <GlassCard title="Top Category" value={topCategory} />
-        <GlassCard title="Recent Transaction" value="—" />
-        <GlassCard title="Budget Left" value="—" />
+        <GlassCard title="Recent Transaction" value={recentTransaction} />
+        <GlassCard title="Budget Left" value={`₱${budgetLeft}`} />
       </div>
 
-      {/* Expense List */}
-      <ExpenseList />
     </Layout>
   )
 }

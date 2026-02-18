@@ -53,32 +53,12 @@ export default function AddExpense() {
 
   return (
     <Layout>
-      <h1 className="text-4xl font-bold mb-6">Add Expense</h1>
+      <h1 className="text-4xl font-bold mb-6">Log in your expenses!</h1>
 
       {/* Form */}
-      <div className="flex gap-5 mb-6 max-w-md">
-        <input
-          type="number"
-          placeholder="Amount"
-          className="p-2 rounded-md bg-white/5 text-white flex-1"
-          value={amount}
-          onChange={(e) => setAmount(Number(e.target.value))}
-        />
-        <input
-          type="text"
-          placeholder="Category"
-          className="p-2 rounded-md bg-white/5 text-white flex-1"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-        />
-        <button
-          onClick={handleAdd}
-          disabled={loading}
-          className="px-4 py-2 rounded-lg bg-purple-400/30 hover:bg-purple-400/50 transition"
-        >
-          {loading ? "Adding..." : "Add"}
-        </button>
-      </div>
+      <div className="flex gap-5 mb-6 max-w-md"></div>
+      <ExpenseList />
     </Layout>
+  
   )
 }

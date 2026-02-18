@@ -37,6 +37,7 @@ export default function Signup() {
         uid: user.uid,
         name: name,
         email: user.email,
+        budget: 0,
         createdAt: serverTimestamp()
       })
 
