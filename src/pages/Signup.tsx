@@ -1,39 +1,46 @@
 import { useState } from "react"
-import { createUserWithEmailAndPassword } from "firebase/auth"
-import { auth, db } from "../firebase" // db is Firestore
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
+import { auth, db } from "../firebase"
 import { useNavigate } from "react-router-dom"
-import { collection, addDoc, serverTimestamp } from "firebase/firestore"
+import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 
 export default function Signup() {
-  const [name, setName] = useState("")         // New field for user's name
+  const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
   const handleSignup = async () => {
-    if (!name || !email || !password) return alert("Name, email, and password are required")
+    if (!name || !email || !password)
+      return alert("Name, email, and password are required")
+
     setLoading(true)
 
     try {
-      // 1️⃣ Create Firebase Auth user
+      // 1️⃣ Create Auth user
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         email,
         password
       )
-      const user = userCredential.user
-      console.log("Signed up user:", user)
 
-      // 2️⃣ Create Firestore document in 'users' collection
-      await addDoc(collection(db, "users"), {
+      const user = userCredential.user
+
+      // 2️⃣ Save display name to Firebase Auth profile
+      await updateProfile(user, {
+        displayName: name
+      })
+
+      // 3️⃣ Create Firestore profile USING UID AS DOC ID
+      await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         name: name,
         email: user.email,
         createdAt: serverTimestamp()
       })
 
-      // 3️⃣ Redirect to dashboard
+      // 4️⃣ Redirect to dashboard
       navigate("/")
     } catch (err: any) {
       alert("Signup failed: " + err.message)
@@ -47,7 +54,6 @@ export default function Signup() {
       <div className="p-8 rounded-2xl bg-black/30 backdrop-blur-md w-96">
         <h2 className="text-2xl font-bold text-white mb-6">Sign Up</h2>
 
-        {/* Name input */}
         <input
           type="text"
           placeholder="Name"
@@ -63,6 +69,7 @@ export default function Signup() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
+
         <input
           type="password"
           placeholder="Password"

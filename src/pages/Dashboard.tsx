@@ -4,85 +4,81 @@ import ExpenseList from "../components/ExpenseCard"
 import GlassCard from "../components/GlassCard"
 import { useEffect, useState } from "react"
 import { auth, db } from "../firebase"
-import { collection, query, where, onSnapshot, getDocs } from "firebase/firestore"
-import { onAuthStateChanged } from "firebase/auth"
-
-interface User {
-  uid: string
-  name: string
-  email: string
-}
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  getDoc
+} from "firebase/firestore"
+import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth"
 
 export default function Dashboard() {
   const [total, setTotal] = useState(0)
   const [topCategory, setTopCategory] = useState("N/A")
-  const [userName, setUserName] = useState<string>("")
+  const [userName, setUserName] = useState("")
   const [loadingUser, setLoadingUser] = useState(true)
 
-  // ----------------------------
-  // Fetch logged-in user's name safely
-  // ----------------------------
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    let expenseUnsub: (() => void) | null = null
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
       if (!user) {
         setUserName("")
         setLoadingUser(false)
         return
       }
 
-      // fetch user profile from Firestore
-      const fetchUser = async () => {
-        try {
-          const q = query(collection(db, "users"), where("uid", "==", user.uid))
-          const snapshot = await getDocs(q)
-          if (!snapshot.empty) {
-            const userData = snapshot.docs[0].data() as User
-            setUserName(userData.name)
-          }
-        } catch (err) {
-          console.error("Failed to fetch user:", err)
-        } finally {
-          setLoadingUser(false)
+      // ----------------------------
+      // 1️⃣ Fetch user profile (UID doc)
+      // ----------------------------
+      try {
+        const userDoc = await getDoc(doc(db, "users", user.uid))
+
+        if (userDoc.exists()) {
+          setUserName(userDoc.data().name)
+        } else {
+          // fallback to Firebase Auth display name
+          setUserName(user.displayName || "User")
         }
+      } catch (err) {
+        console.error("Failed to fetch user:", err)
+      } finally {
+        setLoadingUser(false)
       }
 
-      fetchUser()
-    })
-
-    return () => unsubscribeAuth()
-  }, [])
-
-  // ----------------------------
-  // Real-time stats update
-  // ----------------------------
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (!user) return
-
+      // ----------------------------
+      // 2️⃣ Real-time expense stats
+      // ----------------------------
       const q = query(
         collection(db, "expenses"),
         where("userId", "==", user.uid)
       )
 
-      const expenseUnsub = onSnapshot(q, (snapshot) => {
+      expenseUnsub = onSnapshot(q, (snapshot) => {
         let sum = 0
         const catMap: Record<string, number> = {}
 
         snapshot.docs.forEach((doc) => {
           const data = doc.data()
-          sum += data.amount
-          catMap[data.category] = (catMap[data.category] || 0) + data.amount
+          sum += data.amount ?? 0
+          catMap[data.category] =
+            (catMap[data.category] || 0) + (data.amount ?? 0)
         })
 
         setTotal(sum)
+
         const top = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0]
         setTopCategory(top ? top[0] : "N/A")
       })
-
-      return () => expenseUnsub()
     })
 
-    return () => unsubscribe()
+    // Cleanup everything
+    return () => {
+      unsubscribeAuth()
+      if (expenseUnsub) expenseUnsub()
+    }
   }, [])
 
   return (
