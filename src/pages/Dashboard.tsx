@@ -38,92 +38,116 @@ export default function Dashboard() {
   useEffect(() => {
     let expenseUnsub: (() => void) | null = null
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
-      if (!user) {
-        setUserName("")
-        setBudget(0)
-        setLoadingUser(false)
-        return
-      }
-
-      try {
-        // Fetch user document
-        const userDocRef = doc(db, "users", user.uid)
-        const userDoc = await getDoc(userDocRef)
-        if (userDoc.exists()) {
-          const data = userDoc.data()
-          setUserName(data.name ?? user.displayName ?? "User")
-          setBudget(data.budget ?? 50000)
-        } else {
-          setUserName(user.displayName ?? "User")
-          setBudget(50000)
+    const unsubscribeAuth = onAuthStateChanged(
+      auth,
+      async (user: FirebaseUser | null) => {
+        if (!user) {
+          setUserName("")
+          setBudget(0)
+          setLoadingUser(false)
+          return
         }
-      } catch (err) {
-        console.error("Failed to fetch user:", err)
-        setBudget(50000)
-      } finally {
-        setLoadingUser(false)
-      }
 
-      // Real-time expenses listener
-      const q = query(
-        collection(db, "expenses"),
-        where("userId", "==", user.uid),
-        orderBy("date", "desc")
-      )
+        try {
+          // ✅ Fetch user document
+          const userDocRef = doc(db, "users", user.uid)
+          const userDoc = await getDoc(userDocRef)
 
-      expenseUnsub = onSnapshot(q, (snapshot) => {
-        let sum = 0
-        const catMap: Record<string, number> = {}
-        const txs: Expense[] = []
+          let userBudget = 50000
 
-        snapshot.docs.forEach((doc) => {
-          const data = doc.data()
-          const amount = Number(data.amount ?? 0)
-          const type = data.type ?? "debit" // default expense
-          sum += type === "debit" ? amount : 0
-          catMap[data.category] = (catMap[data.category] || 0) + amount
-          txs.push({
-            id: doc.id,
-            category: data.category,
-            amount,
-            date: data.date?.toDate?.() ?? new Date(),
-            type
+          if (userDoc.exists()) {
+            const data = userDoc.data()
+            setUserName(data.name ?? user.displayName ?? "User")
+            userBudget = data.budget ?? 50000
+            setBudget(userBudget)
+          } else {
+            setUserName(user.displayName ?? "User")
+            setBudget(userBudget)
+          }
+
+          // ✅ Real-time expenses listener (RUNS ONCE)
+          const q = query(
+            collection(db, "expenses"),
+            where("userId", "==", user.uid),
+            orderBy("date", "desc")
+          )
+
+          expenseUnsub = onSnapshot(q, (snapshot) => {
+            let sum = 0
+            const catMap: Record<string, number> = {}
+            const txs: Expense[] = []
+
+            snapshot.docs.forEach((doc) => {
+              const data = doc.data()
+              const amount = Number(data.amount ?? 0)
+              const type = data.type ?? "debit"
+
+              // ✅ Only debit counts as spending
+              if (type === "debit") sum += amount
+
+              catMap[data.category] =
+                (catMap[data.category] || 0) + amount
+
+              txs.push({
+                id: doc.id,
+                category: data.category,
+                amount,
+                date: data.date?.toDate?.() ?? new Date(),
+                type
+              })
+            })
+
+            setTotal(sum)
+
+            const top =
+              Object.entries(catMap).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+              "N/A"
+
+            setTopCategory(top)
+
+            // ✅ Correct budget left calculation
+            setBudgetLeft(userBudget - sum)
+
+            // ✅ Recent transaction
+            if (txs.length > 0)
+              setRecentTransaction(
+                `${txs[0].category}: ₱${txs[0].amount}`
+              )
+            else setRecentTransaction("—")
+
+            setTransactions(txs)
           })
-        })
-
-        setTotal(sum)
-        setTopCategory(Object.entries(catMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "N/A")
-        setBudgetLeft(budget - sum)
-
-        // Most recent transaction
-        if (txs.length > 0) setRecentTransaction(`${txs[0].category}: ₱${txs[0].amount}`)
-        else setRecentTransaction("—")
-
-        setTransactions(txs)
-      })
-    })
+        } catch (err) {
+          console.error("Failed to fetch user:", err)
+        } finally {
+          setLoadingUser(false)
+        }
+      }
+    )
 
     return () => {
       unsubscribeAuth()
       if (expenseUnsub) expenseUnsub()
     }
-  }, [budget])
+  }, []) // ❌ no budget dependency
 
   const handleAddBudget = async () => {
     const addAmountStr = prompt("Enter amount to add to your budget:")
     const addAmount = Number(addAmountStr)
+
     if (!addAmount || addAmount <= 0) return
     if (!auth.currentUser) return
 
     try {
       const userDocRef = doc(db, "users", auth.currentUser.uid)
       const newBudget = budget + addAmount
+
+      // ✅ Update budget
       await updateDoc(userDocRef, { budget: newBudget })
       setBudget(newBudget)
       setBudgetLeft(newBudget - total)
 
-      // Add a "credit" transaction to expenses collection
+      // ✅ Add CREDIT transaction
       await addDoc(collection(db, "expenses"), {
         userId: auth.currentUser.uid,
         amount: addAmount,
@@ -138,7 +162,6 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      {/* Welcome */}
       <h1 className="text-3xl font-bold mb-6">
         {loadingUser ? "Loading..." : `Welcome, ${userName}!`}
       </h1>
@@ -148,17 +171,27 @@ export default function Dashboard() {
         <GlassCard title="Total Expenses" value={`₱${total}`} />
         <GlassCard title="Top Category" value={topCategory} />
         <GlassCard title="Recent Transaction" value={recentTransaction} />
+
         <div onClick={handleAddBudget} className="cursor-pointer">
-          <div style={{ color: budgetLeft >= 0 ? "limegreen" : "red" }}>
-            <GlassCard title="Budget Left" value={`₱${budgetLeft}`} />
-          </div>
+          <div onClick={handleAddBudget} className="cursor-pointer">
+  <div style={{ color: budgetLeft >= 15 ? "limegreen" : "#ad2915" }}>
+    <GlassCard title="Budget Left" value={`₱${budgetLeft}`} />
+  </div>
+</div>
+
         </div>
       </div>
 
       {/* Transaction History */}
       <div className="mt-6 p-4 bg-black/20 backdrop-blur-md rounded-xl border border-white/10">
-        <h3 className="text-white font-semibold mb-4 text-xl">Transaction History</h3>
-        {transactions.length === 0 && <p className="text-white/60">No transactions yet.</p>}
+        <h3 className="text-white font-semibold mb-4 text-xl">
+          Transaction History
+        </h3>
+
+        {transactions.length === 0 && (
+          <p className="text-white/60">No transactions yet.</p>
+        )}
+
         <div className="overflow-y-auto max-h-64">
           {transactions.map((t) => (
             <div
@@ -170,8 +203,14 @@ export default function Dashboard() {
               }`}
             >
               <span>{t.category}</span>
-              <span>{t.type === "credit" ? `+₱${t.amount}` : `₱${t.amount}`}</span>
-              <span>{new Date(t.date).toLocaleDateString()}</span>
+              <span>
+                {t.type === "credit"
+                  ? `+₱${t.amount}`
+                  : `₱${t.amount}`}
+              </span>
+              <span>
+                {new Date(t.date).toLocaleDateString()}
+              </span>
             </div>
           ))}
         </div>
