@@ -17,11 +17,12 @@ const categories = [
   "Other"
 ]
 
-// Animated Liquid Glass Dropdown
+// Animated Liquid Glass Dropdown with glow pulse
 function GlassDropdown({ value, onChange }: { value: string; onChange: (val: string) => void }) {
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  // Close dropdown if clicked outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -36,7 +37,9 @@ function GlassDropdown({ value, onChange }: { value: string; onChange: (val: str
     <div className="relative mb-4" ref={dropdownRef}>
       {/* Closed state */}
       <div
-        className="p-2 rounded-2xl bg-black/30 backdrop-blur-md border border-white/20 text-white cursor-pointer flex justify-between items-center transition hover:ring-2 hover:ring-purple-400"
+        className={`p-2 rounded-2xl bg-black/30 backdrop-blur-md border border-white/20 text-white cursor-pointer flex justify-between items-center transition hover:ring-2 hover:ring-purple-400 ${
+          open ? "animate-glowPulse" : ""
+        }`}
         onClick={() => setOpen(!open)}
       >
         {value || "Select a category"}
@@ -134,7 +137,7 @@ export default function AddExpensePage() {
   return (
     <Layout>
       <div className="p-6">
-        <h1 className="text-3xl font-bold mb-6">Add Expense</h1>
+        <h1 className="text-3xl font-bold mb-6"><center>ADD EXPENSE</center></h1>
         <div className="max-w-md mx-auto">
           <label className="block text-white/80 mb-2">Category</label>
           <GlassDropdown value={category} onChange={setCategory} />
@@ -152,10 +155,10 @@ export default function AddExpensePage() {
             onClick={handleAddExpense}
             disabled={loading}
             className={`w-full py-2 rounded-2xl transition font-medium ${
-              loading ? "bg-gray-600 cursor-not-allowed text-white" : "bg-purple-500 hover:bg-purple-600 text-white"
+              loading ? "bg-gray-600 cursor-not-allowed text-white" : "bg-amber-900 hover:bg-amber-800 text-white"
             }`}
           >
-            {loading ? "Adding..." : "Add Expense"}
+            {loading ? "Adding..." : "SUBMIT"}
           </button>
         </div>
       </div>
