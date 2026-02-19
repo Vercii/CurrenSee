@@ -17,3 +17,11 @@ body {
 .animate-glowPulse {
   animation: glowPulse 1.2s infinite ease-in-out;
 }
+
+.logo-glass {
+  transition: all 0.3s ease;
+}
+
+.logo-glass:hover {
+  transform: translateY(-2px);
+}

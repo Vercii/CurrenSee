@@ -33,7 +33,10 @@ export default function Sidebar() {
             open ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           }`}
       >
-        <h2 className="text-2xl font-bold mb-8 text-white">Curren</h2>
+        <h2 className="text-3xl font-bold mb-8 inline-block logo-glass">
+  Curren<span className="text-red-400">See</span>
+</h2>
+
 
         <nav className="flex flex-col gap-4">
           {links.map((link) => (
