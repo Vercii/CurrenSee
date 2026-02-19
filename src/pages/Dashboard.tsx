@@ -5,15 +5,14 @@ import { useEffect, useState } from "react"
 import { auth, db } from "../firebase"
 import {
   collection,
-  doc,
-  getDoc,
-  updateDoc,
   addDoc,
-  Timestamp,
+  doc,
   query,
-  where,
   orderBy,
-  onSnapshot
+  onSnapshot,
+  Timestamp,
+  updateDoc,
+  getDoc
 } from "firebase/firestore"
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth"
 
@@ -36,7 +35,8 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState<Expense[]>([])
 
   useEffect(() => {
-    let expenseUnsub: (() => void) | null = null
+    let transactionsUnsub: (() => void) | null = null
+    let userDocUnsub: (() => void) | null = null
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
       if (!user) {
@@ -50,63 +50,47 @@ export default function Dashboard() {
         return
       }
 
-      try {
-        const userDocRef = doc(db, "users", user.uid)
-        const userDoc = await getDoc(userDocRef)
+      const uid = user.uid
+      const userDocRef = doc(db, "users", uid)
 
-        // Fetch precomputed values
-        let userBudget = 50000
-        let userTotal = 0
-        let userTopCat = "N/A"
-        let userRecent = "—"
-
-        if (userDoc.exists()) {
-          const data = userDoc.data()
+      // Listen to user doc for real-time stats
+      userDocUnsub = onSnapshot(userDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data()
           setUserName(data.name ?? user.displayName ?? "User")
-          userBudget = data.budget ?? 50000
-          userTotal = data.totalExpenses ?? 0
-          userTopCat = data.topCategory ?? "N/A"
-          userRecent = data.recentTransaction ?? "—"
-        } else {
-          setUserName(user.displayName ?? "User")
+          setBudget(data.budget ?? 0)
+          setTotal(data.totalExpenses ?? 0)
+          setBudgetLeft(data.budgetLeft ?? (data.budget ?? 0) - (data.totalExpenses ?? 0))
+          setTopCategory(data.topCategory ?? "N/A")
+          setRecentTransaction(data.recentTransaction ?? "—")
         }
-
-        setBudget(userBudget)
-        setTotal(userTotal)
-        setTopCategory(userTopCat)
-        setRecentTransaction(userRecent)
-        setBudgetLeft(userBudget)
-
-        // Listen to all transactions for history (optional: we can skip recalculating totals here)
-        const txQuery = query(
-          collection(db, "expenses"),
-          where("userId", "==", user.uid),
-          orderBy("date", "desc")
-        )
-        expenseUnsub = onSnapshot(txQuery, (snapshot) => {
-          const txs: Expense[] = snapshot.docs.map((doc) => {
-            const data = doc.data()
-            return {
-              id: doc.id,
-              category: data.category ?? "Uncategorized",
-              amount: Number(data.amount ?? 0),
-              type: data.type ?? "debit",
-              date: data.date?.toDate?.() ?? new Date()
-            }
-          })
-          setTransactions(txs)
-        })
-
-      } catch (err) {
-        console.error("Failed to fetch user:", err)
-      } finally {
         setLoadingUser(false)
-      }
+      })
+
+      // Listen to transactions for history only
+      const txQuery = query(
+        collection(db, "users", uid, "transactions"),
+        orderBy("date", "desc")
+      )
+      transactionsUnsub = onSnapshot(txQuery, (snapshot) => {
+        const txs: Expense[] = snapshot.docs.map((doc) => {
+          const data = doc.data()
+          return {
+            id: doc.id,
+            category: data.category ?? "Uncategorized",
+            amount: Number(data.amount ?? 0),
+            type: data.type ?? "debit",
+            date: data.date?.toDate?.() ?? new Date()
+          }
+        })
+        setTransactions(txs)
+      })
     })
 
     return () => {
       unsubscribeAuth()
-      if (expenseUnsub) expenseUnsub()
+      if (transactionsUnsub) transactionsUnsub()
+      if (userDocUnsub) userDocUnsub()
     }
   }, [])
 
@@ -120,78 +104,38 @@ export default function Dashboard() {
     if (!auth.currentUser) return
 
     try {
-      const userDocRef = doc(db, "users", auth.currentUser.uid)
+      const uid = auth.currentUser.uid
+      const userDocRef = doc(db, "users", uid)
 
-      // Update budget in Firestore
-      const newBudget = budget + addAmount
-      const newTotal = total // totalExpenses doesn't change
-      await updateDoc(userDocRef, { budget: newBudget })
+      // Fetch current budget and totalExpenses
+      const userDocSnap = await getDoc(userDocRef)
+      let currentBudget = 0
+      let totalExpenses = 0
+      if (userDocSnap.exists()) {
+        const data = userDocSnap.data()
+        currentBudget = data.budget ?? 0
+        totalExpenses = data.totalExpenses ?? 0
+      }
 
-      // Log CREDIT transaction
-      await addDoc(collection(db, "expenses"), {
-        userId: auth.currentUser.uid,
+      const newBudget = currentBudget + addAmount
+      const newBudgetLeft = newBudget - totalExpenses
+
+      // Update user doc
+      await updateDoc(userDocRef, {
+        budget: newBudget,
+        budgetLeft: newBudgetLeft,
+        recentTransaction: `Budget Added: +₱${addAmount}`
+      })
+
+      // Add CREDIT transaction
+      await addDoc(collection(db, "users", uid, "transactions"), {
         amount: addAmount,
         category: "Budget Added",
         type: "credit",
         date: Timestamp.now()
       })
-
-      // Update user doc summary fields
-      const recentTxStr = `Budget Added: +₱${addAmount}`
-      await updateDoc(userDocRef, { recentTransaction: recentTxStr })
-
-      setBudget(newBudget)
-      setBudgetLeft(newBudget - newTotal)
-      setRecentTransaction(recentTxStr)
     } catch (err) {
       alert("Failed to update budget: " + err)
-    }
-  }
-
-  // ---------------------------
-  // Add Expense (debit)
-  // ---------------------------
-  const handleAddExpense = async (category: string, amount: number) => {
-    if (!auth.currentUser) return
-    try {
-      const userDocRef = doc(db, "users", auth.currentUser.uid)
-
-      const newTotal = total + amount
-      const newBudgetLeft = budget - newTotal
-
-      // Update totalExpenses and recentTransaction directly in user doc
-      const recentTxStr = `${category}: ₱${amount}`
-      await updateDoc(userDocRef, {
-        budget: budget,
-        totalExpenses: newTotal,
-        recentTransaction: recentTxStr,
-      })
-
-      // Update Top Category
-      const catTotals = {} as Record<string, number>
-      transactions.forEach((t) => {
-        if (t.type === "debit") catTotals[t.category] = (catTotals[t.category] || 0) + t.amount
-      })
-      catTotals[category] = (catTotals[category] || 0) + amount
-      const newTopCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "N/A"
-      await updateDoc(userDocRef, { topCategory: newTopCat })
-
-      // Add debit transaction
-      await addDoc(collection(db, "expenses"), {
-        userId: auth.currentUser.uid,
-        amount,
-        category,
-        type: "debit",
-        date: Timestamp.now()
-      })
-
-      // Update local state
-      setTotal(newTotal)
-      setBudgetLeft(newBudgetLeft)
-      setTopCategory(newTopCat)
-      setRecentTransaction(recentTxStr)
-    } catch (err) {
-      alert("Failed to add expense: " + err)
     }
   }
 
@@ -253,9 +197,7 @@ export default function Dashboard() {
               <span>
                 {t.type === "credit" ? `+₱${t.amount}` : `₱${t.amount}`}
               </span>
-              <span>
-                {new Date(t.date).toLocaleDateString()}
-              </span>
+              <span>{new Date(t.date).toLocaleDateString()}</span>
             </div>
           ))}
         </div>

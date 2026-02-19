@@ -33,11 +33,16 @@ export default function Signup() {
       })
 
       // 3️⃣ Create Firestore profile USING UID AS DOC ID
+      const startingBudget = 0
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         name: name,
         email: user.email,
-        budget: 0,
+        budget: startingBudget,           // default budget
+        totalExpenses: 0,                 // no expenses yet
+        budgetLeft: startingBudget,       // initialize budgetLeft same as budget
+        topCategory: "N/A",
+        recentTransaction: "—",
         createdAt: serverTimestamp()
       })
 

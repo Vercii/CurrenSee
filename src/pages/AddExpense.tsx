@@ -2,7 +2,7 @@
 import Layout from "../components/Layout"
 import { useState } from "react"
 import { auth, db } from "../firebase"
-import { collection, addDoc, doc, getDoc, updateDoc, query, where, getDocs } from "firebase/firestore"
+import { collection, addDoc, doc, getDoc, updateDoc, getDocs, Timestamp } from "firebase/firestore"
 
 export default function AddExpensePage() {
   const [category, setCategory] = useState("")
@@ -16,64 +16,50 @@ export default function AddExpensePage() {
     const userDocRef = doc(db, "users", uid)
 
     try {
-      // 1️⃣ Add new expense document
-      await addDoc(collection(db, "expenses"), {
-        userId: uid,
+      // 1️⃣ Add the expense transaction
+      await addDoc(collection(db, "users", uid, "transactions"), {
+        amount: Number(amount),
         category,
-        amount,
         type: "debit",
-        date: new Date()
+        date: Timestamp.now()
       })
 
-      // 2️⃣ Recalculate totals for dashboard fields
-      const q = query(collection(db, "expenses"), where("userId", "==", uid))
-      const snapshot = await getDocs(q)
-
+      // 2️⃣ Update totals and budgetLeft
+      const userDocSnap = await getDoc(userDocRef)
       let totalExpenses = 0
-      const catMap: Record<string, number> = {}
-      let recentTransaction = ""
+      let budget = 0
+      if (userDocSnap.exists()) {
+        const data = userDocSnap.data()
+        totalExpenses = data.totalExpenses ?? 0
+        budget = data.budget ?? 0
+      }
 
-      snapshot.docs.forEach((doc) => {
+      const newTotalExpenses = totalExpenses + Number(amount)
+      const newBudgetLeft = budget - newTotalExpenses
+
+      // 3️⃣ Calculate Top Category
+      const txSnapshot = await getDocs(collection(db, "users", uid, "transactions"))
+      const catTotals: Record<string, number> = {}
+      txSnapshot.forEach((doc) => {
         const data = doc.data()
-        const amt = Number(data.amount ?? 0)
-        const typ = data.type ?? "debit"
-        const cat = data.category ?? "Uncategorized"
-
-        if (typ === "debit") {
-          totalExpenses += amt
-          catMap[cat] = (catMap[cat] || 0) + amt
+        if (data.type === "debit") {
+          const cat = data.category ?? "Uncategorized"
+          const amt = Number(data.amount ?? 0)
+          catTotals[cat] = (catTotals[cat] || 0) + amt
         }
       })
+      const newTopCategory = Object.entries(catTotals)
+        .sort((a, b) => b[1] - a[1])[0]?.[0] ?? "N/A"
 
-      // Most recent transaction
-      const sortedTx = snapshot.docs
-        .map((d) => ({ id: d.id, ...d.data() } as { id: string; date?: any; category?: string; amount?: number }))
-        .sort((a, b) => (b.date?.toMillis?.() ?? 0) - (a.date?.toMillis?.() ?? 0))
-
-      if (sortedTx.length > 0) {
-        const last = sortedTx[0]
-        recentTransaction = `${last.category}: ₱${last.amount}`
-      }
-
-      // Top category
-      const topCategory =
-        Object.entries(catMap).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "N/A"
-
-      // 3️⃣ Update user document with totals
-      const userDocSnap = await getDoc(userDocRef)
-      let currentBudget = 50000
-      if (userDocSnap.exists()) {
-        currentBudget = userDocSnap.data().budget ?? 50000
-      }
-
+      // 4️⃣ Update user doc
       await updateDoc(userDocRef, {
-        totalExpenses,
-        recentTransaction,
-        topCategory,
-        budget: currentBudget - amount // subtract expense
+        totalExpenses: newTotalExpenses,
+        budgetLeft: newBudgetLeft,
+        recentTransaction: `${category}: ₱${amount}`,
+        topCategory: newTopCategory
       })
 
-      // Reset form fields
+      // 5️⃣ Reset form
       setCategory("")
       setAmount("")
     } catch (err) {
