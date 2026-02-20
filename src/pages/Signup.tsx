@@ -1,9 +1,9 @@
+// src/pages/Signup.tsx
 import { useState } from "react"
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
+import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth"
 import { auth, db } from "../firebase"
 import { useNavigate } from "react-router-dom"
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"
-import { sendEmailVerification } from "firebase/auth"
 
 export default function Signup() {
   const [name, setName] = useState("")
@@ -40,8 +40,7 @@ export default function Signup() {
   }
 
   const passwordScore = getPasswordStrength(password)
-  const { text: strengthText, color: strengthColor } =
-    strengthLabel(passwordScore)
+  const { text: strengthText, color: strengthColor } = strengthLabel(passwordScore)
 
   const isFormValid =
     name &&
@@ -65,7 +64,7 @@ export default function Signup() {
 
     if (!isStrongPassword(password)) {
       setError(
-        "Password must be 8+ chars with uppercase, lowercase, number, and special character."
+        "Password must meet all strength requirements."
       )
       return
     }
@@ -73,44 +72,39 @@ export default function Signup() {
     setLoading(true)
 
     try {
-      // 1️⃣ Create auth user
-    const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      email,
-      password
-    )
+      // 1️⃣ Create Auth user
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      const user = userCredential.user
 
-    const user = userCredential.user
+      // 2️⃣ Send verification email
+      await sendEmailVerification(user)
 
-    // 2️⃣ Send verification email
-    await sendEmailVerification(user)
+      // 3️⃣ Set display name
+      await updateProfile(user, { displayName: name })
 
-    // 3️⃣ Set display name
-    await updateProfile(user, { displayName: name })
+      // 4️⃣ Create Firestore user doc
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        name,
+        email: user.email,
+        budget: 0,
+        budgetLeft: 0,
+        totalExpenses: 0,
+        topCategory: "N/A",
+        recentTransaction: "—",
+        createdAt: serverTimestamp()
+      })
 
-    // 4️⃣ Create Firestore user doc
-    await setDoc(doc(db, "users", user.uid), {
-      uid: user.uid,
-      name,
-      email: user.email,
-      budget: 0,
-      budgetLeft: 0,
-      totalExpenses: 0,
-      topCategory: "N/A",
-      recentTransaction: "—",
-      createdAt: serverTimestamp()
-    })
-
-        // 🔥 Redirect to verification screen
-        navigate("/verify-email")
-      } catch (err: any) {
-        setError(err.message || "Signup failed. Please try again.")
-      } finally {
-        setLoading(false)
-      }
+      // 🔥 Redirect to verification screen
+      navigate("/verify-email")
+    } catch (err: any) {
+      setError(err.message || "Signup failed. Please try again.")
+    } finally {
+      setLoading(false)
     }
+  }
 
-return (
+  return (
     <div className="flex items-center justify-center min-h-screen bg-gray-900">
       <div className="p-8 rounded-2xl bg-black/30 backdrop-blur-md w-96 border border-white/10">
 
@@ -140,7 +134,7 @@ return (
 
         {email && !isAllowedEmail(email) && (
           <p className="text-red-400 text-sm mb-3">
-            Only Gmail addresses allowed.
+            Only Gmail addresses are allowed.
           </p>
         )}
 
@@ -152,6 +146,21 @@ return (
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+
+        {/* Password requirements */}
+       
+        <div className="text-white/70 text-sm mb-1">
+         <br></br>
+          Password must contain:
+          <ul className="list-disc ml-5">
+            <li>At least 8 characters</li>
+            <li>At least 1 uppercase letter (A-Z)</li>
+            <li>At least 1 lowercase letter (a-z)</li>
+            <li>At least 1 number (0-9)</li>
+            <li>At least 1 special character (!@#$%^&* etc.)</li>
+          </ul>
+           <br></br>
+        </div>
 
         {/* Strength indicator */}
         {password && (
