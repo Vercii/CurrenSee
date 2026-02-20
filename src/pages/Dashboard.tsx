@@ -1,8 +1,8 @@
 // src/pages/Dashboard.tsx
-import Layout from "../components/Layout"
-import GlassCard from "../components/GlassCard"
+import Layout from "../components/Layout.js"
+import GlassCard from "../components/GlassCard.js"
 import { useEffect, useState } from "react"
-import { auth, db } from "../firebase"
+import { auth, db } from "../firebase.js"
 import {
   collection,
   addDoc,

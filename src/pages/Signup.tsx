@@ -1,7 +1,7 @@
 // src/pages/Signup.tsx
 import { useState } from "react"
 import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth"
-import { auth, db } from "../firebase"
+import { auth, db } from "../firebase.js"
 import { useNavigate } from "react-router-dom"
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 

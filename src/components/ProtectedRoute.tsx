@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from "react"
-import { auth } from "../firebase"
+import { auth } from "../firebase.js"
 import { onAuthStateChanged } from "firebase/auth"
 import { useNavigate } from "react-router-dom"
 

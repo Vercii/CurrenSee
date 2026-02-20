@@ -1,15 +1,15 @@
 // src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
-import Dashboard from "./pages/Dashboard"
-import Login from "./pages/Login"
-import Signup from "./pages/Signup"
-import AddExpense from "./pages/AddExpense"
-import Reports from "./pages/Expenses"
-import VerifyEmail from "./pages/VerifyEmail"
-import ProtectedRoute from "./components/ProtectedRoute"
+import Dashboard from "./pages/Dashboard.js"
+import Login from "./pages/Login.js"
+import Signup from "./pages/Signup.js"
+import AddExpense from "./pages/AddExpense.js"
+import Reports from "./pages/Expenses.js"
+import VerifyEmail from "./pages/VerifyEmail.js"
+import ProtectedRoute from "./components/ProtectedRoute.js"
 
 import { useAuthState } from "react-firebase-hooks/auth"
-import { auth } from "./firebase"
+import { auth } from "./firebase.js"
 
 export default function App() {
   const [user, loading] = useAuthState(auth)
