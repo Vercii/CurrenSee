@@ -5,29 +5,27 @@ import Login from "./pages/Login"
 import Signup from "./pages/Signup"
 import AddExpense from "./pages/AddExpense"
 import Reports from "./pages/Expenses"
+import VerifyEmail from "./pages/VerifyEmail"
+import ProtectedRoute from "./components/ProtectedRoute"
+
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth } from "./firebase"
 
 export default function App() {
   const [user, loading] = useAuthState(auth)
 
-  if (loading) return <div>Loading...</div>
+  if (loading)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+        Loading...
+      </div>
+    )
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route
-          path="/"
-          element={user ? <Dashboard /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/add"
-          element={user ? <AddExpense /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/reports"
-          element={user ? <Reports /> : <Navigate to="/login" />}
-        />
+
+        {/* Public Routes */}
         <Route
           path="/login"
           element={!user ? <Login /> : <Navigate to="/" />}
@@ -36,6 +34,34 @@ export default function App() {
           path="/signup"
           element={!user ? <Signup /> : <Navigate to="/" />}
         />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+
+        {/* Protected Routes */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add"
+          element={
+            <ProtectedRoute>
+              <AddExpense />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <Reports />
+            </ProtectedRoute>
+          }
+        />
+
       </Routes>
     </BrowserRouter>
   )

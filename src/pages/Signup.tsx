@@ -3,94 +3,183 @@ import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth"
 import { auth, db } from "../firebase"
 import { useNavigate } from "react-router-dom"
 import { doc, setDoc, serverTimestamp } from "firebase/firestore"
+import { sendEmailVerification } from "firebase/auth"
 
 export default function Signup() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
   const navigate = useNavigate()
 
+  // 🔐 Password strength checker
+  function getPasswordStrength(pw: string) {
+    let score = 0
+    if (pw.length >= 8) score++
+    if (/[A-Z]/.test(pw)) score++
+    if (/[a-z]/.test(pw)) score++
+    if (/[0-9]/.test(pw)) score++
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(pw)) score++
+    return score
+  }
+
+  function strengthLabel(score: number) {
+    if (score <= 2) return { text: "Weak", color: "text-red-400" }
+    if (score <= 4) return { text: "Medium", color: "text-yellow-400" }
+    return { text: "Strong", color: "text-green-400" }
+  }
+
+  function isStrongPassword(pw: string) {
+    return getPasswordStrength(pw) === 5
+  }
+
+  // 📧 Gmail restriction (change if needed)
+  function isAllowedEmail(email: string) {
+    return email.endsWith("@gmail.com")
+  }
+
+  const passwordScore = getPasswordStrength(password)
+  const { text: strengthText, color: strengthColor } =
+    strengthLabel(passwordScore)
+
+  const isFormValid =
+    name &&
+    email &&
+    password &&
+    isAllowedEmail(email) &&
+    isStrongPassword(password)
+
   const handleSignup = async () => {
-    if (!name || !email || !password)
-      return alert("Name, email, and password are required")
+    setError("")
+
+    if (!name || !email || !password) {
+      setError("All fields are required.")
+      return
+    }
+
+    if (!isAllowedEmail(email)) {
+      setError("Please use a valid Gmail address.")
+      return
+    }
+
+    if (!isStrongPassword(password)) {
+      setError(
+        "Password must be 8+ chars with uppercase, lowercase, number, and special character."
+      )
+      return
+    }
 
     setLoading(true)
 
     try {
-      // 1️⃣ Create Auth user
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      )
+      // 1️⃣ Create auth user
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    )
 
-      const user = userCredential.user
+    const user = userCredential.user
 
-      // 2️⃣ Save display name to Firebase Auth profile
-      await updateProfile(user, {
-        displayName: name
-      })
+    // 2️⃣ Send verification email
+    await sendEmailVerification(user)
 
-      // 3️⃣ Create Firestore profile USING UID AS DOC ID
-      const startingBudget = 0
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        name: name,
-        email: user.email,
-        budget: startingBudget,           // default budget
-        totalExpenses: 0,                 // no expenses yet
-        budgetLeft: startingBudget,       // initialize budgetLeft same as budget
-        topCategory: "N/A",
-        recentTransaction: "—",
-        createdAt: serverTimestamp()
-      })
+    // 3️⃣ Set display name
+    await updateProfile(user, { displayName: name })
 
-      // 4️⃣ Redirect to dashboard
-      navigate("/")
-    } catch (err: any) {
-      alert("Signup failed: " + err.message)
-    } finally {
-      setLoading(false)
+    // 4️⃣ Create Firestore user doc
+    await setDoc(doc(db, "users", user.uid), {
+      uid: user.uid,
+      name,
+      email: user.email,
+      budget: 0,
+      budgetLeft: 0,
+      totalExpenses: 0,
+      topCategory: "N/A",
+      recentTransaction: "—",
+      createdAt: serverTimestamp()
+    })
+
+        // 🔥 Redirect to verification screen
+        navigate("/verify-email")
+      } catch (err: any) {
+        setError(err.message || "Signup failed. Please try again.")
+      } finally {
+        setLoading(false)
+      }
     }
-  }
 
-  return (
+return (
     <div className="flex items-center justify-center min-h-screen bg-gray-900">
-      <div className="p-8 rounded-2xl bg-black/30 backdrop-blur-md w-96">
-        <h2 className="text-2xl font-bold text-white mb-6">Sign Up</h2>
+      <div className="p-8 rounded-2xl bg-black/30 backdrop-blur-md w-96 border border-white/10">
 
+        {/* Logo */}
+        <h2 className="text-2xl font-bold text-white mb-6 text-center">
+          Curren
+          <span className="text-red-400">See</span>
+        </h2>
+
+        {/* Name */}
         <input
           type="text"
           placeholder="Name"
-          className="w-full p-2 rounded-md mb-4 bg-white/5 text-white placeholder-gray-400"
+          className="w-full p-2 rounded-md mb-4 bg-white/5 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-purple-500"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
 
+        {/* Email */}
         <input
           type="email"
-          placeholder="Email"
-          className="w-full p-2 rounded-md mb-4 bg-white/5 text-white placeholder-gray-400"
+          placeholder="Gmail address"
+          className="w-full p-2 rounded-md mb-1 bg-white/5 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-purple-500"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
 
+        {email && !isAllowedEmail(email) && (
+          <p className="text-red-400 text-sm mb-3">
+            Only Gmail addresses allowed.
+          </p>
+        )}
+
+        {/* Password */}
         <input
           type="password"
           placeholder="Password"
-          className="w-full p-2 rounded-md mb-4 bg-white/5 text-white placeholder-gray-400"
+          className="w-full p-2 rounded-md mb-1 bg-white/5 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-purple-500"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
 
+        {/* Strength indicator */}
+        {password && (
+          <p className={`text-sm mb-3 ${strengthColor}`}>
+            Strength: {strengthText}
+          </p>
+        )}
+
+        {/* Error message */}
+        {error && (
+          <p className="text-red-400 text-sm mb-3">
+            {error}
+          </p>
+        )}
+
+        {/* Signup button */}
         <button
           onClick={handleSignup}
-          disabled={loading}
-          className="w-full p-2 rounded-lg bg-purple-400/30 hover:bg-purple-400/50 transition"
+          disabled={!isFormValid || loading}
+          className={`w-full p-2 rounded-lg transition font-medium ${
+            !isFormValid || loading
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-purple-500 hover:bg-purple-600"
+          }`}
         >
           {loading ? "Signing up..." : "Sign Up"}
         </button>
+
       </div>
     </div>
   )
