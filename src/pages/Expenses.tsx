@@ -1,6 +1,6 @@
-import Layout from "../components/Layout"
+import Layout from "../components/Layout.js"
 import { useEffect, useState } from "react"
-import { auth, db } from "../firebase"
+import { auth, db } from "../firebase.js"
 import { collection, query, where, getDocs, Timestamp } from "firebase/firestore"
 import { PieChart, Pie, Cell, Legend, ResponsiveContainer } from "recharts"
 

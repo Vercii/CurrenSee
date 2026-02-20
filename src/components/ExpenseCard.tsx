@@ -11,8 +11,8 @@ import {
   orderBy,
   Timestamp
 } from "firebase/firestore"
-import { db, auth } from "../firebase"
-import { Expense } from "../types"
+import { db, auth } from "../firebase.js"
+import { Expense } from "../types.js"
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth"
 
 export default function ExpenseList() {

@@ -1,6 +1,6 @@
 // src/components/Layout.tsx
-import Navbar from "./Navbar"
-import Sidebar from "./Sidebar"
+import Navbar from "./Navbar.js"
+import Sidebar from "./Sidebar.js"
 import { ReactNode } from "react"
 
 interface LayoutProps {

@@ -1,7 +1,7 @@
 // src/pages/AddExpense.tsx
-import Layout from "../components/Layout"
+import Layout from "../components/Layout.js"
 import { useState, useRef, useEffect } from "react"
-import { auth, db } from "../firebase"
+import { auth, db } from "../firebase.js"
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, Timestamp } from "firebase/firestore"
 import "../index.css"
 
