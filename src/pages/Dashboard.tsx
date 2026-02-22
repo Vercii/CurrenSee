@@ -197,7 +197,7 @@ export default function Dashboard() {
       </h1>
 
       {/* 2x2 Dashboard Grid */}
-      <div className="grid grid-cols-2 grid-rows-2 gap-6 mb-6">
+      <div className="grid grid-cols-2 grid-rows-2 gap-6 mb-7">
         <GlassCard
           title="Total Expenses"
           value={`₱${total}`}
@@ -247,10 +247,11 @@ export default function Dashboard() {
             >
               {/* LEFT — CATEGORY */}
               <div className="flex-1 min-w-0 pr-2">
-                <p className="break-words text-lg leading-tight">
+                <p className="text-sm leading-tight whitespace-normal break-all">
                   {t.category}
                 </p>
               </div>
+              
 
               {/* MIDDLE — AMOUNT */}
               <div className="whitespace-nowrap px-4 text-sm">
