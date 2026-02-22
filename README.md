@@ -1,4 +1,4 @@
-CurrenSee <br>
+<h1> CurrenSee </h1> <br> <br>
 CurrenSee is a personal finance tracker web app built with React, TypeScript, Firebase, and TailwindCSS. It helps users manage their budget, track expenses, and monitor spending habits in real-time. Ideal for anyone who wants to take control of their finances with a clean, responsive interface.<br>
 Features<br>
 1. User Authentication
@@ -30,6 +30,6 @@ Features<br>
 | Hosting            | Vercel                         |
 | Utilities          | React Firebase Hooks, Recharts |
 
-<b>This project is for portfolio/demo purposes.</b>
+<b>This project is for portfolio/demo purposes.</b> <br>
 Link: https://currensee-six.vercel.app/login
 
