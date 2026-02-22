@@ -1,4 +1,4 @@
-<h1> CurrenSee </h1> <br> 
+<h1> CurrenSee </h1>
 CurrenSee is a personal finance tracker web app built with React, TypeScript, Firebase, and TailwindCSS. It helps users manage their budget, track expenses, and monitor spending habits in real-time. Ideal for anyone who wants to take control of their finances with a clean, responsive interface.<br>
 Features<br>
 1. User Authentication<br> 
@@ -18,7 +18,7 @@ Features<br>
 15. Total Expenses card<br> 
 16. Top spending category<br> 
 17. Most recent transaction<br> 
-18. Responsive Design and fully mobile-friendly with smooth, glassmorphism-style cards and animations.<br> 
+18. Responsive Design and fully mobile-friendly with smooth, glassmorphism-style cards and animations.<br> <br> 
 
 | Layer              | Technology                     |
 | ------------------ | ------------------------------ |
