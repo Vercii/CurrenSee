@@ -39,57 +39,61 @@ export default function Dashboard() {
     let transactionsUnsub: (() => void) | null = null
     let userDocUnsub: (() => void) | null = null
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
-      if (!user) {
-        setUserName("")
-        setBudget(0)
-        setBudgetLeft(0)
-        setTotal(0)
-        setTopCategory("N/A")
-        setRecentTransaction("—")
-        setLoadingUser(false)
-        return
-      }
-
-      const uid = user.uid
-      const userDocRef = doc(db, "users", uid)
-
-      // Real-time user stats
-      userDocUnsub = onSnapshot(userDocRef, (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data()
-          setUserName(data.name ?? user.displayName ?? "User")
-          setBudget(data.budget ?? 0)
-          setTotal(data.totalExpenses ?? 0)
-          setBudgetLeft(
-            data.budgetLeft ?? (data.budget ?? 0) - (data.totalExpenses ?? 0)
-          )
-          setTopCategory(data.topCategory ?? "N/A")
-          setRecentTransaction(data.recentTransaction ?? "—")
+    const unsubscribeAuth = onAuthStateChanged(
+      auth,
+      async (user: FirebaseUser | null) => {
+        if (!user) {
+          setUserName("")
+          setBudget(0)
+          setBudgetLeft(0)
+          setTotal(0)
+          setTopCategory("N/A")
+          setRecentTransaction("—")
+          setLoadingUser(false)
+          return
         }
-        setLoadingUser(false)
-      })
 
-      // Real-time transaction history
-      const txQuery = query(
-        collection(db, "users", uid, "transactions"),
-        orderBy("date", "desc")
-      )
+        const uid = user.uid
+        const userDocRef = doc(db, "users", uid)
 
-      transactionsUnsub = onSnapshot(txQuery, (snapshot) => {
-        const txs: Expense[] = snapshot.docs.map((doc) => {
-          const data = doc.data()
-          return {
-            id: doc.id,
-            category: data.category ?? "Uncategorized",
-            amount: Number(data.amount ?? 0),
-            type: data.type ?? "debit",
-            date: data.date?.toDate?.() ?? new Date()
+        // 🔄 Real-time user stats
+        userDocUnsub = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data()
+            setUserName(data.name ?? user.displayName ?? "User")
+            setBudget(data.budget ?? 0)
+            setTotal(data.totalExpenses ?? 0)
+            setBudgetLeft(
+              data.budgetLeft ??
+                (data.budget ?? 0) - (data.totalExpenses ?? 0)
+            )
+            setTopCategory(data.topCategory ?? "N/A")
+            setRecentTransaction(data.recentTransaction ?? "—")
           }
+          setLoadingUser(false)
         })
-        setTransactions(txs)
-      })
-    })
+
+        // 🔄 Real-time transaction history
+        const txQuery = query(
+          collection(db, "users", uid, "transactions"),
+          orderBy("date", "desc")
+        )
+
+        transactionsUnsub = onSnapshot(txQuery, (snapshot) => {
+          const txs: Expense[] = snapshot.docs.map((doc) => {
+            const data = doc.data()
+            return {
+              id: doc.id,
+              category: data.category ?? "Uncategorized",
+              amount: Number(data.amount ?? 0),
+              type: data.type ?? "debit",
+              date: data.date?.toDate?.() ?? new Date()
+            }
+          })
+          setTransactions(txs)
+        })
+      }
+    )
 
     return () => {
       unsubscribeAuth()
@@ -99,7 +103,7 @@ export default function Dashboard() {
   }, [])
 
   // ---------------------------
-  // Add Budget
+  // ➕ ADD BUDGET
   // ---------------------------
   const handleAddBudget = async () => {
     const addAmountStr = prompt("Enter amount to add to your budget:")
@@ -142,7 +146,7 @@ export default function Dashboard() {
   }
 
   // ---------------------------
-  // DELETE TRANSACTION 🔥
+  // 🗑️ DELETE TRANSACTION
   // ---------------------------
   const handleDeleteTransaction = async (t: Expense) => {
     if (!auth.currentUser) return
@@ -166,11 +170,9 @@ export default function Dashboard() {
       let currentBudgetLeft = data.budgetLeft ?? 0
 
       if (t.type === "debit") {
-        // Undo expense
         currentTotal -= t.amount
         currentBudgetLeft += t.amount
       } else {
-        // Undo budget add (credit)
         currentBudget -= t.amount
         currentBudgetLeft -= t.amount
       }
@@ -194,7 +196,7 @@ export default function Dashboard() {
         {loadingUser ? "Loading..." : `Welcome, ${userName}!`}
       </h1>
 
-      {/* 2x2 Grid */}
+      {/* 2x2 Dashboard Grid */}
       <div className="grid grid-cols-2 grid-rows-2 gap-6 mb-6">
         <GlassCard
           title="Total Expenses"
@@ -237,29 +239,39 @@ export default function Dashboard() {
           {transactions.map((t) => (
             <div
               key={t.id}
-              className={`flex justify-between items-center p-2 mb-2 rounded-md transition ${
+              className={`flex items-start p-2 mb-2 rounded-md transition ${
                 t.type === "credit"
                   ? "bg-green-400/10 hover:bg-green-400/20"
                   : "bg-black/10 hover:bg-purple-400/10"
               }`}
             >
-              <span className="break-words flex-1 pr-2">
-                {t.category}
-              </span>
+              {/* LEFT — CATEGORY */}
+              <div className="flex-1 min-w-0 pr-2">
+                <p className="break-words text-lg leading-tight">
+                  {t.category}
+                </p>
+              </div>
 
-              <span>
-                {t.type === "credit" ? `+₱${t.amount}` : `₱${t.amount}`}
-              </span>
+              {/* MIDDLE — AMOUNT */}
+              <div className="whitespace-nowrap px-4 text-sm">
+                {t.type === "credit"
+                  ? `+₱${t.amount}`
+                  : `₱${t.amount}`}
+              </div>
 
-              <span>{new Date(t.date).toLocaleDateString()}</span>
+              {/* RIGHT — DATE + DELETE */}
+              <div className="flex flex-col items-end whitespace-nowrap text-xs gap-1">
+                <span>
+                  {new Date(t.date).toLocaleDateString()}
+                </span>
 
-              {/* DELETE BUTTON */}
-              <button
-                onClick={() => handleDeleteTransaction(t)}
-                className="ml-2 text-red-400 hover:text-red-300 text-sm"
-              >
-                Delete
-              </button>
+                <button
+                  onClick={() => handleDeleteTransaction(t)}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
