@@ -21,17 +21,23 @@ export default function GlassCard({
       className={`p-4 rounded-xl bg-black/20 backdrop-blur-md border border-white/10 cursor-pointer transition ${hoverColor}`}
     >
       {/* TITLE */}
-      <h3 className="text-white font-semibold text-lg">{title}</h3>
+      <h3 className="text-white font-semibold text-lg break-words">
+        {title}
+      </h3>
 
-      {/* NEW SUBTITLE */}
+      {/* SUBTITLE */}
       {subtitle && (
-        <p className="text-yellow-300 text-xs font-medium">
+        <p className="text-yellow-300 text-xs font-medium break-words">
           {subtitle}
         </p>
       )}
 
-      {/* VALUE */}
-      <p className={`mt-2 text-2xl font-bold ${textColor}`}>
+      {/* VALUE — FIXED */}
+      <p
+        className={`mt-2 font-bold ${textColor}
+        text-lg sm:text-xl md:text-2xl
+        break-words whitespace-normal break-all min-w-0`}
+      >
         {value}
       </p>
     </div>

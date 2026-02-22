@@ -247,7 +247,7 @@ export default function Dashboard() {
             >
               {/* LEFT — CATEGORY */}
               <div className="flex-1 min-w-0 pr-2">
-                <p className="text-sm leading-tight whitespace-normal break-all">
+                <p className="text-lg leading-tight whitespace-normal break-all">
                   {t.category}
                 </p>
               </div>
