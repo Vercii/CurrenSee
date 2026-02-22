@@ -1,6 +1,7 @@
 interface GlassCardProps {
   title: string
   value: string | number
+  subtitle?: string
   hoverColor?: string
   textColor?: string
   onClick?: () => void
@@ -9,19 +10,28 @@ interface GlassCardProps {
 export default function GlassCard({
   title,
   value,
-  hoverColor = "hover:bg-purple-400/10 hover:border-purple-400/30",
-  textColor = "text-white",
-  onClick
+  subtitle,
+  onClick,
+  hoverColor = "",
+  textColor = "text-white"
 }: GlassCardProps) {
   return (
     <div
       onClick={onClick}
-      className={`p-6 rounded-xl bg-black/20 backdrop-blur-md border border-white/10 transition cursor-pointer ${hoverColor}`}
+      className={`p-4 rounded-xl bg-black/20 backdrop-blur-md border border-white/10 cursor-pointer transition ${hoverColor}`}
     >
-      <h3 className="text-white/70 mb-2">{title}</h3>
+      {/* TITLE */}
+      <h3 className="text-white font-semibold text-lg">{title}</h3>
 
-      {/* ✅ Apply custom color here */}
-      <p className={`text-2xl font-bold ${textColor}`}>
+      {/* NEW SUBTITLE */}
+      {subtitle && (
+        <p className="text-yellow-300 text-xs font-medium">
+          {subtitle}
+        </p>
+      )}
+
+      {/* VALUE */}
+      <p className={`mt-2 text-2xl font-bold ${textColor}`}>
         {value}
       </p>
     </div>

@@ -13,7 +13,6 @@ const categories = [
   "Shopping",
   "Health",
   "Education",
-  "Budget Added",
   "Other"
 ]
 
