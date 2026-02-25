@@ -3,6 +3,7 @@
 import Layout from "../components/Layout.js"
 import GlassCard from "../components/GlassCard.js"
 import { useState, useRef, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { db, auth } from "../firebase.js"
 import { addDoc, collection, Timestamp, doc, getDoc, updateDoc } from "firebase/firestore"
 import { useNavigate } from "react-router-dom"
@@ -17,6 +18,7 @@ const sources = [
   "Other"
 ]
 
+// 🔹 Updated GlassDropdown using portal
 function GlassDropdown({
   value,
   onChange
@@ -26,7 +28,9 @@ function GlassDropdown({
 }) {
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 })
 
+  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -34,55 +38,66 @@ function GlassDropdown({
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
-    return () =>
-      document.removeEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
+
+  // Calculate position for portal
+  useEffect(() => {
+    if (open && dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect()
+      setPosition({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: rect.width })
+    }
+  }, [open])
 
   return (
     <div className="relative" ref={dropdownRef}>
+      {/* Trigger */}
       <div
-        className="p-3 rounded-xl bg-black/30 backdrop-blur-md border border-white/20 text-white cursor-pointer flex justify-between items-center transition hover:ring-2 hover:ring-green-400"
+        className="p-3 rounded-xl bg-black/80 backdrop-blur-md border border-white/20 text-white cursor-pointer flex justify-between items-center transition hover:ring-2 hover:ring-green-400"
         onClick={() => setOpen(!open)}
       >
         {value || "Select source"}
         <span>{open ? "▲" : "▼"}</span>
       </div>
 
-      <div
-        className={`absolute z-10 w-full mt-1 rounded-xl bg-black/30 backdrop-blur-md border border-white/20 shadow-lg max-h-48 overflow-y-auto transform transition-all duration-200 origin-top ${
-          open
-            ? "scale-100 opacity-100"
-            : "scale-95 opacity-0 pointer-events-none"
-        }`}
-      >
-        {sources.map((src) => (
+      {/* Dropdown portal */}
+      {open &&
+        createPortal(
           <div
-            key={src}
-            className={`p-2 cursor-pointer transition hover:bg-white/10 ${
-              value === src ? "bg-white/20 font-semibold" : ""
-            }`}
-            onClick={() => {
-              onChange(src)
-              setOpen(false)
+            className="absolute z-50 mt-1 rounded-xl bg-black/30 backdrop-blur-md border border-white/20 shadow-lg max-h-48 overflow-y-auto transform transition-all duration-150"
+            style={{
+              top: position.top,
+              left: position.left,
+              width: position.width,
             }}
           >
-            {src}
-          </div>
-        ))}
-      </div>
+            {sources.map((src) => (
+              <div
+                key={src}
+                className={`p-2 cursor-pointer transition hover:bg-white/10 ${
+                  value === src ? "bg-white/20 font-semibold" : ""
+                }`}
+                onClick={() => {
+                  onChange(src)
+                  setOpen(false)
+                }}
+              >
+                {src}
+              </div>
+            ))}
+          </div>,
+          document.body
+        )}
     </div>
   )
 }
 
 export default function AddBudget() {
   const navigate = useNavigate()
-
   const [amount, setAmount] = useState("")
   const [source, setSource] = useState("Cash")
   const [note, setNote] = useState("")
-  const [date, setDate] = useState(
-    new Date().toISOString().split("T")[0]
-  )
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0])
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -130,7 +145,7 @@ export default function AddBudget() {
       // Add transaction with source as category
       await addDoc(collection(db, "users", uid, "transactions"), {
         amount: Number(amount),
-        category: `Budget Added (${source})`, // <-- include source here
+        category: `Budget Added (${source})`,
         type: "credit",
         date: Timestamp.now()
       })
