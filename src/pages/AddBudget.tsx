@@ -117,7 +117,7 @@ export default function AddBudget() {
         amount: Number(amount),
         source,
         note,
-        date: Timestamp.fromDate(new Date(date)),
+        date: Timestamp.now(),
         createdAt: Timestamp.now(),
       })
 
@@ -199,24 +199,6 @@ export default function AddBudget() {
                 Source
               </label>
               <GlassDropdown value={source} onChange={setSource} />
-            </div>
-
-            {/* Date */}
-            <div>
-              <label className="block mb-2 text-sm font-medium text-white/80">
-                Date
-              </label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full p-3 rounded-xl 
-                bg-white/10 backdrop-blur-md
-                border border-white/20
-                text-white
-                focus:outline-none focus:ring-2 focus:ring-green-400
-                transition"
-              />
             </div>
 
             {/* Notes */}
