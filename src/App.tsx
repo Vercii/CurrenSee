@@ -10,6 +10,7 @@ import ProtectedRoute from "./components/ProtectedRoute.js"
 
 import { useAuthState } from "react-firebase-hooks/auth"
 import { auth } from "./firebase.js"
+import AddBudget from "./pages/AddBudget.js"
 
 export default function App() {
   const [user, loading] = useAuthState(auth)
@@ -58,6 +59,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Reports />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add-budget"
+          element={
+            <ProtectedRoute>
+              <AddBudget />
             </ProtectedRoute>
           }
         />

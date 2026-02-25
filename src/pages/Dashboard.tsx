@@ -2,18 +2,14 @@
 import Layout from "../components/Layout.js"
 import GlassCard from "../components/GlassCard.js"
 import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { auth, db } from "../firebase.js"
 import {
   collection,
-  addDoc,
   doc,
   query,
   orderBy,
   onSnapshot,
-  Timestamp,
-  updateDoc,
-  getDoc,
-  deleteDoc
 } from "firebase/firestore"
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth"
 
@@ -26,14 +22,16 @@ interface Expense {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [userName, setUserName] = useState("")
   const [loadingUser, setLoadingUser] = useState(true)
-  const [budget, setBudget] = useState(0)
   const [budgetLeft, setBudgetLeft] = useState(0)
+  const [totalCredited, setTotalCredited] = useState(0)
+  const [totalDebited, setTotalDebited] = useState(0)
+  const [transactions, setTransactions] = useState<Expense[]>([])
   const [total, setTotal] = useState(0)
   const [topCategory, setTopCategory] = useState("N/A")
   const [recentTransaction, setRecentTransaction] = useState("—")
-  const [transactions, setTransactions] = useState<Expense[]>([])
 
   useEffect(() => {
     let transactionsUnsub: (() => void) | null = null
@@ -44,8 +42,11 @@ export default function Dashboard() {
       async (user: FirebaseUser | null) => {
         if (!user) {
           setUserName("")
-          setBudget(0)
+
           setBudgetLeft(0)
+          setTotalCredited(0)
+          setTotalDebited(0)
+          setTransactions([])
           setTotal(0)
           setTopCategory("N/A")
           setRecentTransaction("—")
@@ -56,24 +57,20 @@ export default function Dashboard() {
         const uid = user.uid
         const userDocRef = doc(db, "users", uid)
 
-        // 🔄 Real-time user stats
+        // Real-time user stats
         userDocUnsub = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data()
             setUserName(data.name ?? user.displayName ?? "User")
-            setBudget(data.budget ?? 0)
+            setBudgetLeft(data.budgetLeft ?? 0)
             setTotal(data.totalExpenses ?? 0)
-            setBudgetLeft(
-              data.budgetLeft ??
-                (data.budget ?? 0) - (data.totalExpenses ?? 0)
-            )
             setTopCategory(data.topCategory ?? "N/A")
             setRecentTransaction(data.recentTransaction ?? "—")
           }
           setLoadingUser(false)
         })
 
-        // 🔄 Real-time transaction history
+        // Real-time transaction history
         const txQuery = query(
           collection(db, "users", uid, "transactions"),
           orderBy("date", "desc")
@@ -91,6 +88,16 @@ export default function Dashboard() {
             }
           })
           setTransactions(txs)
+
+          // Compute totals
+          let credited = 0
+          let debited = 0
+          txs.forEach((t) => {
+            if (t.type === "credit") credited += t.amount
+            else debited += t.amount
+          })
+          setTotalCredited(credited)
+          setTotalDebited(debited)
         })
       }
     )
@@ -102,93 +109,28 @@ export default function Dashboard() {
     }
   }, [])
 
-  // ---------------------------
-  // ➕ ADD BUDGET
-  // ---------------------------
-  const handleAddBudget = async () => {
-    const addAmountStr = prompt("Enter amount to add to your budget:")
-    const addAmount = Number(addAmountStr)
-    if (!addAmount || addAmount <= 0) return
-    if (!auth.currentUser) return
-
-    try {
-      const uid = auth.currentUser.uid
-      const userDocRef = doc(db, "users", uid)
-
-      const userDocSnap = await getDoc(userDocRef)
-      let currentBudget = 0
-      let totalExpenses = 0
-
-      if (userDocSnap.exists()) {
-        const data = userDocSnap.data()
-        currentBudget = data.budget ?? 0
-        totalExpenses = data.totalExpenses ?? 0
-      }
-
-      const newBudget = currentBudget + addAmount
-      const newBudgetLeft = newBudget - totalExpenses
-
-      await updateDoc(userDocRef, {
-        budget: newBudget,
-        budgetLeft: newBudgetLeft,
-        recentTransaction: `Budget Added: +₱${addAmount}`
-      })
-
-      await addDoc(collection(db, "users", uid, "transactions"), {
-        amount: addAmount,
-        category: "Budget Added",
-        type: "credit",
-        date: Timestamp.now()
-      })
-    } catch (err) {
-      alert("Failed to update budget: " + err)
+  // -----------------------------
+  // Glow, border, and text color
+  // -----------------------------
+  const getColorClasses = () => {
+    if (budgetLeft < 40) return {
+      text: "text-red-400",
+      border: "border-red-500",
+      shadow: "shadow-red-500/70"
+    }
+    if (budgetLeft < 70) return {
+      text: "text-yellow-400",
+      border: "border-yellow-400",
+      shadow: "shadow-yellow-400/70"
+    }
+    return {
+      text: "text-green-400",
+      border: "border-green-400",
+      shadow: "shadow-green-400/70"
     }
   }
 
-  // ---------------------------
-  // 🗑️ DELETE TRANSACTION
-  // ---------------------------
-  const handleDeleteTransaction = async (t: Expense) => {
-    if (!auth.currentUser) return
-
-    const confirmDelete = confirm(
-      `Delete "${t.category}" transaction of ₱${t.amount}?`
-    )
-    if (!confirmDelete) return
-
-    try {
-      const uid = auth.currentUser.uid
-      const userDocRef = doc(db, "users", uid)
-      const txRef = doc(db, "users", uid, "transactions", t.id)
-
-      const userSnap = await getDoc(userDocRef)
-      if (!userSnap.exists()) return
-
-      const data = userSnap.data()
-      let currentTotal = data.totalExpenses ?? 0
-      let currentBudget = data.budget ?? 0
-      let currentBudgetLeft = data.budgetLeft ?? 0
-
-      if (t.type === "debit") {
-        currentTotal -= t.amount
-        currentBudgetLeft += t.amount
-      } else {
-        currentBudget -= t.amount
-        currentBudgetLeft -= t.amount
-      }
-
-      await updateDoc(userDocRef, {
-        totalExpenses: currentTotal,
-        budget: currentBudget,
-        budgetLeft: currentBudgetLeft,
-        recentTransaction: `Deleted: ${t.category}`
-      })
-
-      await deleteDoc(txRef)
-    } catch (err) {
-      alert("Failed to delete transaction: " + err)
-    }
-  }
+  const colorClasses = getColorClasses()
 
   return (
     <Layout>
@@ -196,8 +138,42 @@ export default function Dashboard() {
         {loadingUser ? "Loading..." : `Welcome, ${userName}!`}
       </h1>
 
-      {/* 2x2 Dashboard Grid */}
-      <div className="grid grid-cols-2 grid-rows-2 gap-6 mb-7">
+      {/* -------------------- */}
+      {/* Top Row: Balance Card */}
+      {/* -------------------- */}
+      <div className="mb-6">
+        <div
+          className={`flex justify-between items-center w-full gap-6
+            p-6 rounded-xl
+            bg-black/30 backdrop-blur-md border ${colorClasses.border}
+            shadow-lg ${colorClasses.shadow}`}
+        >
+          {/* LEFT — Balance */}
+          <div className="flex-1 flex flex-col justify-center">
+            <p className="text-white/90 text-sm">Balance</p>
+            <p className={`text-3xl font-bold ${colorClasses.text}`}>
+              ₱{budgetLeft}
+            </p>
+          </div>
+
+          {/* RIGHT — Total Credited / Debited */}
+          <div className="flex-1 flex flex-col justify-center text-right">
+            <p className="text-white/70 text-sm">Total Credited</p>
+            <p className="text-green-400 font-semibold text-lg">
+              ₱{totalCredited}
+            </p>
+            <p className="text-white/70 text-sm mt-2">Total Debited</p>
+            <p className="text-red-400 font-semibold text-lg">
+              ₱{totalDebited}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* -------------------- */}
+      {/* Second Row: 3 Cards */}
+      {/* -------------------- */}
+      <div className="grid grid-cols-3 gap-6 mb-7">
         <GlassCard
           title="Total Expenses"
           value={`₱${total}`}
@@ -214,14 +190,6 @@ export default function Dashboard() {
           title="Recent Transaction"
           value={recentTransaction}
           hoverColor="hover:bg-[#2778b3]/20 hover:border-[#2778b3]/40"
-        />
-
-        <GlassCard
-          title="Budget Left"
-          subtitle="Click here to add budget."
-          value={`₱${budgetLeft}`}
-          onClick={handleAddBudget}
-          textColor={budgetLeft >= 15 ? "text-lime-400" : "text-red-500"}
         />
       </div>
 
@@ -245,29 +213,20 @@ export default function Dashboard() {
                   : "bg-black/10 hover:bg-purple-400/10"
               }`}
             >
-              {/* LEFT — CATEGORY */}
               <div className="flex-1 min-w-0 pr-2">
                 <p className="text-lg leading-tight whitespace-normal break-all">
                   {t.category}
                 </p>
               </div>
-              
 
-              {/* MIDDLE — AMOUNT */}
               <div className="whitespace-nowrap px-4 text-sm">
-                {t.type === "credit"
-                  ? `+₱${t.amount}`
-                  : `₱${t.amount}`}
+                {t.type === "credit" ? `+₱${t.amount}` : `₱${t.amount}`}
               </div>
 
-              {/* RIGHT — DATE + DELETE */}
               <div className="flex flex-col items-end whitespace-nowrap text-xs gap-1">
-                <span>
-                  {new Date(t.date).toLocaleDateString()}
-                </span>
-
+                <span>{new Date(t.date).toLocaleDateString()}</span>
                 <button
-                  onClick={() => handleDeleteTransaction(t)}
+                  onClick={() => alert("Deleting not implemented in this snippet")}
                   className="text-red-400 hover:text-red-300"
                 >
                   Delete

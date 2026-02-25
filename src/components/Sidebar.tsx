@@ -10,6 +10,7 @@ export default function Sidebar() {
   const links = [
     { name: "Dashboard", path: "/", icon: <FiHome /> },
     { name: "Add Expense", path: "/add", icon: <FiPlusCircle /> },
+    { name: "Add Budget", path: "/add-budget", icon: <FiPlusCircle /> },
     { name: "Reports", path: "/reports", icon: <FiBarChart2 /> }
   ]
 
