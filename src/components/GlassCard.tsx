@@ -38,13 +38,6 @@ export default function GlassCard({
         </h3>
       )}
 
-      {/* SUBTITLE */}
-      {subtitle && (
-        <p className="text-yellow-300 text-xs font-medium break-words">
-          {subtitle}
-        </p>
-      )}
-
       {/* VALUE */}
       {value !== undefined && value !== null && (
         <p

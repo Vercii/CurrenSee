@@ -42,7 +42,6 @@ export default function Dashboard() {
       async (user: FirebaseUser | null) => {
         if (!user) {
           setUserName("")
-
           setBudgetLeft(0)
           setTotalCredited(0)
           setTotalDebited(0)
@@ -139,53 +138,51 @@ export default function Dashboard() {
       </h1>
 
       {/* -------------------- */}
-      {/* Top Row: Balance Card */}
+      {/* Responsive Card Grid */}
       {/* -------------------- */}
-      <div className="mb-6">
-        <div
-          className={`flex justify-between items-center w-full gap-6
-            p-6 rounded-xl
-            bg-black/30 backdrop-blur-md border ${colorClasses.border}
-            shadow-lg ${colorClasses.shadow}`}
-        >
-          {/* LEFT — Balance */}
-          <div className="flex-1 flex flex-col justify-center">
-            <p className="text-white/90 text-sm">Balance</p>
-            <p className={`text-3xl font-bold ${colorClasses.text}`}>
-              ₱{budgetLeft}
-            </p>
-          </div>
+      <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mb-7">
 
-          {/* RIGHT — Total Credited / Debited */}
-          <div className="flex-1 flex flex-col justify-center text-right">
-            <p className="text-white/70 text-sm">Total Credited</p>
-            <p className="text-green-400 font-semibold text-lg">
-              ₱{totalCredited}
-            </p>
-            <p className="text-white/70 text-sm mt-2">Total Debited</p>
-            <p className="text-red-400 font-semibold text-lg">
-              ₱{totalDebited}
-            </p>
+        {/* Balance Card */}
+        <div className="col-span-1 sm:col-span-2 lg:col-span-3">
+          <div
+            className={`flex justify-between items-center w-full gap-6
+              p-6 rounded-xl
+              bg-black/30 backdrop-blur-md border ${colorClasses.border}
+              shadow-lg ${colorClasses.shadow}`}
+          >
+            {/* LEFT — Balance */}
+            <div className="flex-1 flex flex-col justify-center">
+              <p className="text-white/90 text-sm">Balance</p>
+              <p className={`text-3xl font-bold ${colorClasses.text}`}>
+                ₱{budgetLeft}
+              </p>
+            </div>
+
+            {/* RIGHT — Total Credited / Debited */}
+            <div className="flex-1 flex flex-col justify-center text-right">
+              <p className="text-white/70 text-sm">Total Credited</p>
+              <p className="text-green-400 font-semibold text-lg">
+                ₱{totalCredited}
+              </p>
+              <p className="text-white/70 text-sm mt-2">Total Debited</p>
+              <p className="text-red-400 font-semibold text-lg">
+                ₱{totalDebited}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* -------------------- */}
-      {/* Second Row: 3 Cards */}
-      {/* -------------------- */}
-      <div className="grid grid-cols-3 gap-6 mb-7">
+        {/* Other 3 Cards */}
         <GlassCard
           title="Total Expenses"
           value={`₱${total}`}
           hoverColor="hover:bg-[#a85432]/20 hover:border-[#a85432]/40"
         />
-
         <GlassCard
           title="Top Category"
           value={topCategory}
           hoverColor="hover:bg-[#aeb327]/20 hover:border-[#aeb327]/40"
         />
-
         <GlassCard
           title="Recent Transaction"
           value={recentTransaction}
